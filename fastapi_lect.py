@@ -27,7 +27,6 @@ white_urls = ["/", "/login", "/logout", "/register"]
     path = '/',
     response_class= HTMLResponse
 )
-
 def main_page(req: Request):
     return templates.TemplateResponse(
         name = 'home.html',
