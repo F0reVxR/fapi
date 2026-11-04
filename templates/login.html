@@ -6,6 +6,17 @@
     <title>Login page</title>
 </head>
 <body>
-    
+    <form method="post" action="/submit">
+        <label>
+            Имя:
+            <input type="text" name="username" value="{{ username }}">
+        </label>
+        <label>
+            Email:
+            <input type="email" name="email" value="{{ email }}">
+        </label>
+        <button type="submit">Отправить</button>
+    </form>
+    <label>{{ username }}, {{ email }}</label>
 </body>
 </html>

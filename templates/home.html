@@ -8,18 +8,17 @@
 </head>
 <body>
     <h1>Hello!!!</h1>
-    <form method="post" action="/submit">
-        <label>
-            Имя:
-            <input type="text" name="username" value="{{ username }}">
-        </label>
-        <label>
-            Email:
-            <input type="email" name="email" value="{{ email }}">
-        </label>
-        <button type="submit">Отправить</button>
-    </form>
-    <label>{{ username }}, {{ email }}</label>
+    <div class="container">
+        <h2>Добро пожаловать, {{ username }}!</h2>
+        <p><b>Хэшированный пароль:</b> {{ password_hash }}</p>
+        <button onclick="toggleTheme()">Сменить тему</button>
+    </div> 
+
+    <script>
+    function toggleTheme() {
+        document.body.classList.toggle("dark");
+    }
+    </script>
     <script src="/static/home_script.js"></script>
 </body>
 </html>
