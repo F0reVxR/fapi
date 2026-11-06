@@ -33,3 +33,5 @@ def main_page(req: Request):
         context= {'request':req}
     )
 
+print(hash(1212))
+print(hash(1212))
