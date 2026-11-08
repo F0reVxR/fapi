@@ -40,7 +40,7 @@ def show_form(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"username": ""},
+        context={"error": None},
     )
 
 @app.post("/login", response_class=HTMLResponse)
@@ -58,7 +58,7 @@ def submit_form(request: Request, username: str = Form(...), password: str = For
             redirect_url = f"/home?username={username}"
             if is_authenticated:
                 return RedirectResponse(url=redirect_url, status_code=303)
-            else: return templates.TemplateResponse(request=request, name='login.html', context={"error": "Incorrect password"})
+            else: return templates.TemplateResponse(request=request, name='login.html', context={"error": "Incorrect username or password"})
         except pd.errors.EmptyDataError:
             file_status = False
 
@@ -99,7 +99,7 @@ def get_user(req: Request, username: str = Form(...), password: str = Form(...))
         print(f"Ошибка при записи файла: {e}")
         return HTMLResponse(content=f"Ошибка сервера при записи данных: {e}", status_code=500)
 
-    return templates.TemplateResponse(request=req, name='register.html', context={"error": None})
+    return templates.TemplateResponse(request=req, name='home.html', context={"username": username})
 
 @app.get(path = '/404', response_class= HTMLResponse)
 def main_page(req: Request):

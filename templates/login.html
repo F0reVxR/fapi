@@ -1,21 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login page</title>
+    <link rel="stylesheet" href="../static/login.css">
 </head>
+
 <body>
-    <form method="post" action="/login">
-        <label>
-            Имя:
-            <input type="text" name="username" value="{{ username }}">
-        </label>
-        <label>
-            Пароль:
-            <input type="password" name="password" value="{{ password }}">
-        </label>
-        <button type="submit">Войти</button>
-    </form>
+    <div class="container">
+        <form method="post" action="/login">
+            <label>Имя: <input type="text" name="username" value="{{ username }}" required></label>
+
+            <label>Пароль: <input type="password" name="password" value="{{ password }}" required></label>
+
+            <button type="submit">Войти</button>
+            
+            {% if error %}
+            <label style="color: red;">{{ error }}</label>
+            {% endif %}
+
+        </form>
+    </div>
 </body>
+
 </html>

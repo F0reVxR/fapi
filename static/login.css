@@ -1,0 +1,44 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100dvh;
+    margin: 0;
+    background: mistyrose;
+    color: #000;
+}
+
+label {
+    font-size: 64px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+input {
+    max-width: 500px;
+    width: 100%;
+    min-height: 40px;
+    background-color: inherit;
+    font-size: inherit;
+}
+
+button {
+    max-width: 400px;
+    width: 100%;
+    padding-left: 17px;
+    padding-top: 15px;
+    padding-right: 17px;
+    padding-bottom: 15px;
+    font-size: 16px;
+    background-color: inherit;
+    border: 1px solid inherit;
+    border-radius: 50px;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    align-items: center;
+}
