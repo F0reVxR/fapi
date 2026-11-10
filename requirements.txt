@@ -5,3 +5,4 @@ pillow
 jinja2
 python-multipart
 bcrypt
+itsdangerous

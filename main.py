@@ -2,7 +2,9 @@
 import os
 import pandas as pd
 import bcrypt
+import itsdangerous
 
+from starlette.middleware.sessions import SessionMiddleware
 from fastapi import FastAPI, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -17,7 +19,7 @@ app.mount(
     app=StaticFiles(directory='static'),
     name='static'
 )
-
+app.add_middleware(SessionMiddleware, secret_key='spinach')
 templates = Jinja2Templates(directory="templates")
 
 white_urls = ["/", "/login", "/logout", "/register"]
@@ -27,12 +29,16 @@ def main_page(req: Request):
     return templates.TemplateResponse(request=req, name = 'based_main.html')
 
 @app.get(path = '/home', response_class= HTMLResponse)
-def main_page(req: Request, username: str):
-    context = {'request':req, 'username':username}
+def home_page(req: Request):
+    username = req.session.get('username')
+    password = req.session.get('password')
+    if not username:
+        return RedirectResponse(request=req, name = '/login.html', status_code=402)
+    context = {'request':req, 'username':username, 'password':password}
     return templates.TemplateResponse(request=req, name = 'home.html', context=context)
 
 @app.get(path = '/login', response_class= HTMLResponse)
-def main_page(req: Request):
+def login_page(req: Request):
     return templates.TemplateResponse(request=req, name = 'login.html')
 
 @app.get("/login", response_class=HTMLResponse)
@@ -44,34 +50,65 @@ def show_form(request: Request):
     )
 
 @app.post("/login", response_class=HTMLResponse)
-def submit_form(request: Request, username: str = Form(...), password: str = Form(...)):
-    hp = bcrypt.hashpw(password.encode('utf-8'), salt)
-    filename = "user_data.csv"
+def submit_form(
+    request: Request, username: str = Form(...), password: str = Form(...)
+):
+  filename = "user_data.csv"
+  file_status = os.path.isfile(filename) and os.path.getsize(filename) > 0
 
-    file_status = os.path.isfile(filename) and os.path.getsize(filename) > 0
+  if not file_status:
+    return templates.TemplateResponse(
+        request=request, name="login.html", context={"error": "No such file"}
+    )
 
-    if file_status:
-        try:
-            existing = pd.read_csv(filename, dtype=str, keep_default_na=False, encoding="utf-8")
-            is_authenticated = ((existing["username"] == username) & (existing["password"] == hp.decode('utf-8'))).any()
-            print(is_authenticated)
-            redirect_url = f"/home?username={username}"
-            if is_authenticated:
-                return RedirectResponse(url=redirect_url, status_code=303)
-            else: return templates.TemplateResponse(request=request, name='login.html', context={"error": "Incorrect username or password"})
-        except pd.errors.EmptyDataError:
-            file_status = False
+  try:
+    existing = pd.read_csv(
+        filename, dtype=str, keep_default_na=False, encoding="utf-8"
+    )
 
-    return templates.TemplateResponse(request=request, name='login.html', context={"error": 'No such file'})
+    user_rows = existing[existing["username"] == username]
 
+    # Вся логика проверки должна быть строго ЗДЕСЬ
+    if not user_rows.empty:
+      # Достаем строку (тип str), взяв самый первый элемент серии (.values[0])
+      stored_hash_str = user_rows["password"].values[0]
+
+      password_bytes = password.encode("utf-8")
+      stored_hash_bytes = stored_hash_str.encode("utf-8")
+
+      try:
+        if bcrypt.checkpw(password_bytes, stored_hash_bytes):
+          request.session["username"] = username
+          redirect_url = f"/home?username={username}"
+          return RedirectResponse(url=redirect_url, status_code=303)
+      except ValueError:
+        # Защита на случай, если в CSV лежит обычный текст вместо bcrypt-хеша
+        print(f"Критическая ошибка: невалидный хеш в БД для {username}")
+
+    # Сюда код попадет, если пользователя нет, пароль не подошел или хеш поврежден
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"error": "Incorrect username or password"},
+    )
+
+  except pd.errors.EmptyDataError:
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"error": "Database file is empty"},
+    )
+  
 @app.get(path='/register', response_class=HTMLResponse)
-def main_page(req: Request):
+def register_page(req: Request):
     return templates.TemplateResponse(request=req, name='register.html', context={"error": None})
 
 @app.post(path='/register', response_class=HTMLResponse)
 def get_user(req: Request, username: str = Form(...), password: str = Form(...)):
     hp = bcrypt.hashpw(password.encode('utf-8'), salt)
-    dictionary = {'username': username, 'password': hp}
+    req.session['username'] = username
+    req.session['password'] = hp
+    dictionary = {'username': req.session.get(username), 'password': req.session.get('password')}
     filename = "user_data.csv"
 
     file_status = os.path.isfile(filename) and os.path.getsize(filename) > 0
@@ -89,7 +126,7 @@ def get_user(req: Request, username: str = Form(...), password: str = Form(...))
         except pd.errors.EmptyDataError:
             file_status = False
 
-    dictionary = {'username': username, 'password': hp.decode('utf-8')}
+    dictionary = {'username': username, 'password': (req.session.get('password')).decode('utf-8')}
     df_1 = pd.DataFrame([dictionary])
     
     try:
@@ -102,5 +139,5 @@ def get_user(req: Request, username: str = Form(...), password: str = Form(...))
     return templates.TemplateResponse(request=req, name='home.html', context={"username": username})
 
 @app.get(path = '/404', response_class= HTMLResponse)
-def main_page(req: Request):
+def error_page(req: Request):
     return templates.TemplateResponse(request=req, name = '404.html')
