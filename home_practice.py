@@ -1,4 +1,6 @@
+#python -m uvicorn home_practice:app --reload
 import os
+import time
 
 import bcrypt
 import pandas as pd
@@ -25,6 +27,7 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 
 USER_DATA_FILE = "user_data.csv"
+SESSION_LIFETIME = 120
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -38,6 +41,16 @@ def main_page(request: Request):
 @app.get("/home", response_class=HTMLResponse)
 def home_page(request: Request):
     username = request.session.get("username")
+    session_starttime = request.session.get("session_starttime")
+    current_time = time.time()
+
+    try:
+
+        if (current_time - session_starttime) or not session_starttime> SESSION_LIFETIME:
+            request.session.clear()
+
+    except TypeError:
+        return RedirectResponse(url="/login", status_code=303)
 
     if not username:
         return RedirectResponse(url="/login", status_code=303)
@@ -116,9 +129,17 @@ def submit_login(
         )
 
     request.session["username"] = username
+    request.session["session_starttime"]= time.time()
 
     return RedirectResponse(url="/home", status_code=303)
 
+@app.post("/logout", response_class=HTMLResponse)
+def log_out(request: Request):
+    request.session.clear()
+    return RedirectResponse(
+        url='/login',
+        status_code=303
+    )
 
 @app.get("/register", response_class=HTMLResponse)
 def register_page(request: Request):
@@ -182,6 +203,7 @@ def register_user(
         )
 
     request.session["username"] = username
+    request.session["session_starttime"]= time.time()
 
     return templates.TemplateResponse(
         request=request,

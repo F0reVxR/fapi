@@ -11,8 +11,9 @@
 <body>
     <div class="container">
         <label>Добро пожаловать, {{ username }}!</label>
-        <label>Пароль: {{ password }}!</label>
+        <!-- <label>Пароль: {{ password }}</label> -->
         <button id="toggle">Сменить тему</button>
+        <form method="post" action="/logout"><button id="logout">Выйти</button></form>
     </div>
     <script src="../static/home_script.js"></script>
 </body>

@@ -42,3 +42,7 @@ button.dark {
     color: mistyrose;
     border: 5px solid mistyrose;
 }
+
+button:hover{
+    cursor: pointer;
+}

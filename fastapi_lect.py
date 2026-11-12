@@ -1,5 +1,6 @@
 # python -m uvicorn fastapi_lect:app --reload
 # static - для css
+import datetime
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -33,5 +34,4 @@ def main_page(req: Request):
         context= {'request':req}
     )
 
-print(hash(1212))
-print(hash(1212))
+print(datetime.datetime.now())
