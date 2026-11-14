@@ -10,9 +10,17 @@
 
 <body>
     <div class="container">
-        <div id="ave">
-            <img src="" alt="profile">
-        </div>
+        <form method="post" enctype="multipart/form-data">
+    <!-- Добавлен параметр ?v=... или обработка кэша, если фото обновляется -->
+            <img id="avatarPreview" 
+                src="/static/pics/{{ username }}/avatars/avatar.webp" 
+                onerror="this.onerror=null; this.src='/static/pics/default-avatar.webp';"
+                alt="Аватар">
+                
+            <input type="file" name="file" accept="image/jpeg, image/png, image/webp" required>
+            <button type="submit">Отправить</button>
+        </form>
+
         <label>Добро пожаловать, {{ username }}!</label>
         <!-- <label>Пароль: {{ password }}</label> -->
         <button id="toggle">Сменить тему</button>
