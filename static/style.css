@@ -46,3 +46,12 @@ button.dark {
 button:hover{
     cursor: pointer;
 }
+
+.avatar-container:hover .avatar-overlay {
+    opacity: 1;
+}
+
+/* Скрываем стандартный input */
+#fileInput {
+    display: none;
+}

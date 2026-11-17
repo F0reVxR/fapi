@@ -1,15 +1,18 @@
 #python -m uvicorn home_practice:app --reload
 import os
+import io
 import time
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 import bcrypt
 import pandas as pd
-from fastapi import FastAPI, Request, Form
+from pathlib import Path
+from fastapi import FastAPI, Request, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.exceptions import HTTPException
 from starlette.middleware.sessions import SessionMiddleware
-
 
 app = FastAPI()
 
@@ -22,12 +25,15 @@ app.mount(
 app.add_middleware(
     SessionMiddleware,
     secret_key="spinach",
+    same_site='lax',
+    https_only=True
 )
 
 templates = Jinja2Templates(directory="templates")
 
 USER_DATA_FILE = "user_data.csv"
 SESSION_LIFETIME = 120
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -42,6 +48,7 @@ def main_page(request: Request):
 def home_page(request: Request):
     username = request.session.get("username")
     session_starttime = request.session.get("session_starttime")
+    avatar = request.session.get('avatar')
     current_time = time.time()
 
     try:
@@ -58,7 +65,7 @@ def home_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"username": username},
+        context={"username": username, 'avatar': avatar},
     )
 
 
@@ -218,3 +225,33 @@ def error_page(request: Request):
         request=request,
         name="404.html",
     )
+
+@app.post("/home")
+async def upload_avatar(request: Request, file: UploadFile = File(...)):
+    username = request.session.get("username")
+    if not username:
+        raise HTTPException(status_code=401, detail="Пользователь не авторизован")
+
+    if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
+        raise HTTPException(status_code=400, detail="Недопустимый формат файла")
+
+    contents = await file.read()
+
+    try:
+        img = Image.open(io.BytesIO(contents))
+        
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+            
+    except UnidentifiedImageError:
+        raise HTTPException(status_code=400, detail="Файл поврежден или не является изображением")
+
+    img = ImageOps.fit(img, (300, 300), Image.Resampling.LANCZOS)
+
+    upload_dir = Path(f"static/pics/{username}/avatars")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = upload_dir / "avatar.webp"
+    img.save(file_path, format="WEBP", quality=85)
+    
+    return RedirectResponse(url="/", status_code=303)
