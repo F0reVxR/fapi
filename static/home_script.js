@@ -1,33 +1,37 @@
-button = document.getElementById('toggle')
+let button = document.getElementById('toggle')
 
 button.addEventListener('click', () => {
     document.body.classList.toggle("dark");
     button.classList.toggle("dark");
 })
 
-profileDiv = document.getElementById('ave')
-imageExistenceStatus = true
+let profileDiv = document.getElementById('ave')
+let imageChangeStatus = false
 
-profileDiv.addEventListener('click', )
+function importImage(){
+    let img = document.createElement('input')
+    img.classList.add('uploading')
+    img.type = 'file'
+    
+    return img
+}
 
-function createImage(path){
-    image = document.createElement('img');
+function createImage(){
+    let image = document.createElement('img');
     image.classList.add('profile-picture');
-    image.src = `/${path}`;
+    image.src = '';
     image.alt = 'profile-picture';
 
     return image
 }
 
-function choosePfp(path, imageExistenceStatus){
-    if (imageExistenceStatus){
-        existingImg = document.getElementsByClassName('profile-picture')
-        existingImg.remove()
-        img = createImage(path)
-    }
-    else{
-        img = createImage(path)
-    }
+function choosePfp(){
+    let existingImg = document.getElementsByClassName('profile-picture')
+    existingImg.remove()
+    
+
+    let img = createImage()
     profileDiv.append(img)
 }
 
+profileDiv.addEventListener('click', choosePfp)
