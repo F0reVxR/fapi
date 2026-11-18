@@ -1,12 +1,12 @@
 #python -m uvicorn home_practice:app --reload
 import os
-import io
 import time
-from PIL import Image, ImageOps, UnidentifiedImageError
+import uuid
+import shutil
+from typing import Annotated
 
 import bcrypt
 import pandas as pd
-from pathlib import Path
 from fastapi import FastAPI, Request, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -33,7 +33,6 @@ templates = Jinja2Templates(directory="templates")
 
 USER_DATA_FILE = "user_data.csv"
 SESSION_LIFETIME = 120
-ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -48,12 +47,12 @@ def main_page(request: Request):
 def home_page(request: Request):
     username = request.session.get("username")
     session_starttime = request.session.get("session_starttime")
-    avatar = request.session.get('avatar')
+    avatar = request.session.get('pfp_url')
     current_time = time.time()
 
     try:
 
-        if (current_time - session_starttime) or not session_starttime> SESSION_LIFETIME:
+        if (current_time - session_starttime) or not session_starttime > SESSION_LIFETIME:
             request.session.clear()
 
     except TypeError:
@@ -65,7 +64,7 @@ def home_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"username": username, 'avatar': avatar},
+        context={"username": username, 'pfp_url': avatar},
     )
 
 
@@ -115,7 +114,8 @@ def submit_login(
         )
 
     stored_hash = user_rows["password"].iloc[0]
-
+    pfp_url = user_rows["pfp"].iloc[0]
+    
     try:
         password_is_correct = bcrypt.checkpw(
             password.encode("utf-8"),
@@ -134,8 +134,9 @@ def submit_login(
             name="login.html",
             context={"error": "Incorrect username or password"},
         )
-
+    
     request.session["username"] = username
+    request.session["pfp_url"] = pfp_url
     request.session["session_starttime"]= time.time()
 
     return RedirectResponse(url="/home", status_code=303)
@@ -156,15 +157,17 @@ def register_page(request: Request):
         context={"error": None},
     )
 
-
 @app.post("/register", response_class=HTMLResponse)
 def register_user(
     request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
+    username: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+    # Делаем файл необязательным (на случай если фото не выбрали)
+    avatar_file: Annotated[UploadFile | None, File()] = None
 ):
+    # 1. Добавили колонку "pfp" в пустой DataFrame
     if not os.path.isfile(USER_DATA_FILE) or os.path.getsize(USER_DATA_FILE) == 0:
-        existing = pd.DataFrame(columns=["username", "password"])
+        existing = pd.DataFrame(columns=["username", "password", "pfp"])
         file_exists = False
     else:
         try:
@@ -176,7 +179,7 @@ def register_user(
             )
             file_exists = True
         except pd.errors.EmptyDataError:
-            existing = pd.DataFrame(columns=["username", "password"])
+            existing = pd.DataFrame(columns=["username", "password", "pfp"])
             file_exists = False
 
     if not existing.empty and (existing["username"] == username).any():
@@ -191,8 +194,31 @@ def register_user(
         bcrypt.gensalt(),
     ).decode("utf-8")
 
+    # 2. Обработка аватарки (если файл загружен и у него есть имя)
+    if avatar_file and avatar_file.filename:
+        # Убрали скобки у filename
+        file_extension = os.path.splitext(avatar_file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        
+        # Убрали начальный слэш и гарантируем создание папки
+        upload_dir = os.path.join("static", "avatars")
+        os.makedirs(upload_dir, exist_ok=True)
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(avatar_file.file, buffer)
+            
+        avatar_url = f"/static/avatars/{unique_filename}"
+    else:
+        # Стандартная аватарка, если пользователь ничего не загрузил
+        avatar_url = "/static/avatars/default.webp"
+
     new_user = pd.DataFrame(
-        [{"username": username, "password": password_hash}]
+        [{
+            "username": username, 
+            "password": password_hash,
+            "pfp": avatar_url
+        }]
     )
 
     try:
@@ -210,12 +236,12 @@ def register_user(
         )
 
     request.session["username"] = username
-    request.session["session_starttime"]= time.time()
-
+    request.session["session_starttime"] = time.time()
+    
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"username": username},
+        context={"username": username, "pfp": avatar_url},
     )
 
 
@@ -225,33 +251,3 @@ def error_page(request: Request):
         request=request,
         name="404.html",
     )
-
-@app.post("/home")
-async def upload_avatar(request: Request, file: UploadFile = File(...)):
-    username = request.session.get("username")
-    if not username:
-        raise HTTPException(status_code=401, detail="Пользователь не авторизован")
-
-    if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
-        raise HTTPException(status_code=400, detail="Недопустимый формат файла")
-
-    contents = await file.read()
-
-    try:
-        img = Image.open(io.BytesIO(contents))
-        
-        if img.mode not in ("RGB", "RGBA"):
-            img = img.convert("RGB")
-            
-    except UnidentifiedImageError:
-        raise HTTPException(status_code=400, detail="Файл поврежден или не является изображением")
-
-    img = ImageOps.fit(img, (300, 300), Image.Resampling.LANCZOS)
-
-    upload_dir = Path(f"static/pics/{username}/avatars")
-    upload_dir.mkdir(parents=True, exist_ok=True)
-
-    file_path = upload_dir / "avatar.webp"
-    img.save(file_path, format="WEBP", quality=85)
-    
-    return RedirectResponse(url="/", status_code=303)

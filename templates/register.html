@@ -7,7 +7,9 @@
     <link rel="stylesheet" href="../static/login.css">
 </head>
 <body>
-    <form method="post" action="/register">
+    <form method="post" action="/register" enctype="multipart/form-data">
+        <img id="avatarPreview" src="/static/avatars/default-avatar.webp">
+        <input type="file" name="avatar_file" accept="image/jpeg, image/png, image/webp" required>
         <label>
             Имя:
             <input type="text" name="username" required>
