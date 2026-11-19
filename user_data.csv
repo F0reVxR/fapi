@@ -1,2 +1,2 @@
-username,password,pfp
-a,$2b$12$312HUhv7/vnX5EqHcQatj.mBa4Xqk68PlcvTwRDXr/wUS/X5TdmF6,/static/avatars/2746c726-e95e-489c-aa23-09899f7e13db.jpg
+username,password,pfp,role
+a,$2b$12$xVOlnkKZ46LgcnqnE3wYfewoJsVA9jS3cRLnCvjp0vY8w6UvDtosa,/static/avatars/a23cf904-f2fe-41ad-a4a7-ddf34a7eb57c.png,COMMON

@@ -33,6 +33,11 @@ templates = Jinja2Templates(directory="templates")
 
 USER_DATA_FILE = "user_data.csv"
 SESSION_LIFETIME = 120
+ROLES = {
+    "COMMON": 1,
+    "SILVER": 2,
+    "GOLD": 3
+}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -217,7 +222,8 @@ def register_user(
         [{
             "username": username, 
             "password": password_hash,
-            "pfp": avatar_url
+            "pfp": avatar_url,
+            "role": "COMMON"
         }]
     )
 
