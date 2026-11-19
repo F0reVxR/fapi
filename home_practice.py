@@ -267,9 +267,13 @@ def error_page(request: Request):
 
 @app.get('/main', response_class=HTMLResponse)
 def main_page_load(request: Request):
+    news = pd.read_csv('articles.csv', encoding="utf-8").fillna('')
+    newslist = news.to_dict(orient="records")
+
     return templates.TemplateResponse(
         request=request,
-        name="main.html"
+        name="main.html",
+        context={"news_list": newslist}
     )
 
 @app.get('/create-news', response_class=HTMLResponse)
@@ -277,6 +281,40 @@ def news_page_load(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="create-news.html"
+    )
+
+@app.post('/create-news', response_class=HTMLResponse)
+def news_page_load(
+        request: Request,
+        title: str = Form(...),
+        annotation: str = Form(...),
+        body: str = Form(...),
+        preview_image: UploadFile = File(...),
+        article_images: list[UploadFile] = File(default=[]),
+    ):
+
+    if not os.path.isfile('articles.csv') or os.path.getsize("articles.csv") == 0:
+            existing = pd.DataFrame(columns=["title", "annotation", "body", "preview_image", "article_images"])
+            file_exists = False
+    
+    article = pd.DataFrame({
+                'title': title,
+                'annotation': annotation,
+                'body': body,
+                'preview_image': preview_image,
+                'article_images': article_images
+            })
+    
+    article.to_csv(
+        'articles.csv',
+        index=False,
+        mode="a",
+        header=not file_exists,
+        encoding="utf-8",
+    )
+        
+    return RedirectResponse(
+        url="main.html", status_code=307
     )
 
 @app.get('/article', response_class=HTMLResponse)
