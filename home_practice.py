@@ -167,7 +167,7 @@ def register_user(
 ):
     # 1. Добавили колонку "pfp" в пустой DataFrame
     if not os.path.isfile(USER_DATA_FILE) or os.path.getsize(USER_DATA_FILE) == 0:
-        existing = pd.DataFrame(columns=["username", "password", "pfp"])
+        existing = pd.DataFrame(columns=["username", "password", "pfp", "role"])
         file_exists = False
     else:
         try:
@@ -179,7 +179,7 @@ def register_user(
             )
             file_exists = True
         except pd.errors.EmptyDataError:
-            existing = pd.DataFrame(columns=["username", "password", "pfp"])
+            existing = pd.DataFrame(columns=["username", "password", "pfp", "role"])
             file_exists = False
 
     if not existing.empty and (existing["username"] == username).any():
