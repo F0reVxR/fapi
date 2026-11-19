@@ -10,8 +10,9 @@
 
 <body>
     <div class="container">
-        <img id="ave" src="{{ pfp_url }}">
+        <img id="ave" src="{{ pfp_url }}" style='width:100px;height:100px;object-fit:cover;border-radius:50%;'>
         <label>Добро пожаловать, {{ username }}!</label>
+        <label>ROLE: {{ role }}</label>
         <!-- <label>Пароль: {{ password }}</label> -->
         <button id="toggle">Сменить тему</button>
         <form method="post" action="/logout"><button id="logout">Выйти</button></form>

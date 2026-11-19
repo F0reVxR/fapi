@@ -2,8 +2,8 @@
 import os
 import time
 import uuid
-import shutil
 from typing import Annotated
+from PIL import Image, ImageOps
 
 import bcrypt
 import pandas as pd
@@ -11,7 +11,6 @@ from fastapi import FastAPI, Request, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.exceptions import HTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 app = FastAPI()
@@ -40,12 +39,9 @@ ROLES = {
 }
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/", response_class=RedirectResponse)
 def main_page(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="based_main.html",
-    )
+    return RedirectResponse(url="/login", status_code=303)
 
 
 @app.get("/home", response_class=HTMLResponse)
@@ -53,6 +49,7 @@ def home_page(request: Request):
     username = request.session.get("username")
     session_starttime = request.session.get("session_starttime")
     avatar = request.session.get('pfp_url')
+    role = request.session.get('role')
     current_time = time.time()
 
     try:
@@ -69,7 +66,7 @@ def home_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"username": username, 'pfp_url': avatar},
+        context={"username": username, 'pfp_url': avatar, "role": role},
     )
 
 
@@ -120,6 +117,7 @@ def submit_login(
 
     stored_hash = user_rows["password"].iloc[0]
     pfp_url = user_rows["pfp"].iloc[0]
+    role = user_rows["role"].iloc[0]
     
     try:
         password_is_correct = bcrypt.checkpw(
@@ -142,6 +140,7 @@ def submit_login(
     
     request.session["username"] = username
     request.session["pfp_url"] = pfp_url
+    request.session["role"] = role
     request.session["session_starttime"]= time.time()
 
     return RedirectResponse(url="/home", status_code=303)
@@ -167,10 +166,8 @@ def register_user(
     request: Request,
     username: Annotated[str, Form()],
     password: Annotated[str, Form()],
-    # Делаем файл необязательным (на случай если фото не выбрали)
     avatar_file: Annotated[UploadFile | None, File()] = None
 ):
-    # 1. Добавили колонку "pfp" в пустой DataFrame
     if not os.path.isfile(USER_DATA_FILE) or os.path.getsize(USER_DATA_FILE) == 0:
         existing = pd.DataFrame(columns=["username", "password", "pfp", "role"])
         file_exists = False
@@ -199,23 +196,28 @@ def register_user(
         bcrypt.gensalt(),
     ).decode("utf-8")
 
-    # 2. Обработка аватарки (если файл загружен и у него есть имя)
     if avatar_file and avatar_file.filename:
-        # Убрали скобки у filename
-        file_extension = os.path.splitext(avatar_file.filename)[1]
+        file_extension = os.path.splitext(avatar_file.filename)[1] or ".webp"
         unique_filename = f"{uuid.uuid4()}{file_extension}"
-        
-        # Убрали начальный слэш и гарантируем создание папки
+
         upload_dir = os.path.join("static", "avatars")
         os.makedirs(upload_dir, exist_ok=True)
         file_path = os.path.join(upload_dir, unique_filename)
-        
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(avatar_file.file, buffer)
-            
+
+        with Image.open(avatar_file.file) as img:
+            img = ImageOps.exif_transpose(img)
+
+            if file_extension.lower() in (".jpg", ".jpeg") and img.mode in (
+                "RGBA",
+                "P",
+            ):
+                img = img.convert("RGB")
+
+            cropped = ImageOps.fit(img, (300, 300), method=Image.Resampling.LANCZOS)
+            cropped.save(file_path)
+
         avatar_url = f"/static/avatars/{unique_filename}"
     else:
-        # Стандартная аватарка, если пользователь ничего не загрузил
         avatar_url = "/static/avatars/default.webp"
 
     new_user = pd.DataFrame(
@@ -242,12 +244,17 @@ def register_user(
         )
 
     request.session["username"] = username
+    request.session["role"] = "COMMON"
     request.session["session_starttime"] = time.time()
     
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"username": username, "pfp": avatar_url},
+        context={
+            "username": username, 
+            "pfp_url": avatar_url, 
+            "role": "COMMON"
+            },
     )
 
 
@@ -256,4 +263,25 @@ def error_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="404.html",
+    )
+
+@app.get('/main', response_class=HTMLResponse)
+def main_page_load(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="main.html"
+    )
+
+@app.get('/create-news', response_class=HTMLResponse)
+def news_page_load(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="create-news.html"
+    )
+
+@app.get('/article', response_class=HTMLResponse)
+def article_page_load(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="article.html"
     )

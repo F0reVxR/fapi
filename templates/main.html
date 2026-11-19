@@ -1,11 +1,55 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Main page</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Новостной портал</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <label>Hello</label>
+
+  <header class="header">
+    <div class="container header__inner">
+      <a href="index.html" class="logo">NEWS.PORTAL</a>
+      
+      <div class="header__actions">
+        <!-- Показываем кнопку только модератору и админу -->
+        {% if role == "GOLD" %}
+          <a href="create-news.html" class="btn">+ Добавить новость</a>
+        {% endif %}
+        
+        <img class="avatar" src="{{ pfp_url }}" alt="Профиль">
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="news-grid">
+      
+      <!-- Плитка новости (повторяется в цикле) -->
+      {% for item in news_list %}
+      <a href="article.html?id={{ item.id }}" class="news-card">
+        <img class="news-card__img" src="{{ item.preview_image }}" alt="{{ item.title }}">
+        
+        <div class="news-card__body">
+          <time class="news-card__date">{{ item.published_at }}</time>
+          <h2 class="news-card__title">{{ item.title }}</h2>
+          <p class="news-card__excerpt">{{ item.annotation }}</p>
+          
+          <div class="news-card__stats">
+            <div class="stats-group">
+              <span class="stat-item" title="Нравится">👍 {{ item.likes }}</span>
+              <span class="stat-item" title="Не нравится">👎 {{ item.dislikes }}</span>
+              <span class="stat-item" title="Комментарии">💬 {{ item.comments_count }}</span>
+            </div>
+            <span class="stat-item" title="Просмотры">👁 {{ item.views }}</span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+
+    </div>
+  </main>
+
 </body>
 </html>

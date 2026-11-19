@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ article.title }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <header class="header">
+    <div class="container header__inner">
+      <a href="index.html" class="logo">NEWS.PORTAL</a>
+      <img class="avatar" src="{{ pfp_url }}" alt="Профиль">
+    </div>
+  </header>
+
+  <main class="container">
+    <article class="article-wrap">
+      <a href="index.html" class="article__back">← Назад к новостям</a>
+      
+      <div class="article__date">Опубликовано: {{ article.published_at }} • 👁 {{ article.views }}</div>
+      <h1 class="article__title">{{ article.title }}</h1>
+      <p class="article__lead">{{ article.annotation }}</p>
+      
+      <!-- Превью-картинка как главная обложка -->
+      <img class="article__cover" src="{{ article.preview_image }}" alt="{{ article.title }}">
+      
+      <!-- Полный текст статьи -->
+      <div class="article__content">
+        {{ article.body | safe }}
+      </div>
+
+      <!-- Остальные картинки в статье -->
+      {% if article.gallery_images %}
+      <div class="article__gallery">
+        {% for img_url in article.gallery_images %}
+          <img src="{{ img_url }}" alt="Изображение к статье">
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Панель реакций внизу статьи -->
+      <div class="news-card__stats" style="margin-top: 32px;">
+        <div class="stats-group">
+          <button type="button" class="btn btn--outline">👍 {{ article.likes }}</button>
+          <button type="button" class="btn btn--outline">👎 {{ article.dislikes }}</button>
+        </div>
+        <span>Комментариев: {{ article.comments_count }}</span>
+      </div>
+    </article>
+  </main>
+
+</body>
+</html>
