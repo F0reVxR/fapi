@@ -10,8 +10,8 @@
 
   <header class="header">
     <div class="container header__inner">
-      <a href="index.html" class="logo">NEWS.PORTAL</a>
-      <a href="index.html" class="btn btn--outline">Отмена</a>
+      <a href="/main" class="logo">NEWS.PORTAL</a>
+      <a href="/main" class="btn btn--outline">Отмена</a>
     </div>
   </header>
 
@@ -19,7 +19,7 @@
     <div class="form-card">
       <h1>Новая публикация</h1>
       
-      <form action="/news/create" method="POST" enctype="multipart/form-data">
+      <form action="/create-news" method="POST" enctype="multipart/form-data">
         
         <div class="form-group">
           <label for="title">Заголовок новости</label>
@@ -28,22 +28,22 @@
 
         <div class="form-group">
           <label for="annotation">Аннотация (краткое описание для плитки)</label>
-          <textarea id="annotation" name="annotation" class="form-control" rows="3" placeholder="О чем эта новость в двух предложениях..." required></textarea>
+          <textarea id="annotation" name="annotation" class="form-control" rows="3" placeholder="О чем эта новость в двух предложениях..."></textarea>
         </div>
 
         <div class="form-group">
           <label for="published_at">Дата и время публикации</label>
-          <input type="datetime-local" id="published_at" name="published_at" class="form-control" required>
+          <input type="datetime-local" id="published_at" name="published_at" class="form-control">
         </div>
 
         <div class="form-group">
           <label for="preview_image">Превью-картинка (обложка)</label>
-          <input type="file" id="preview_image" name="preview_image" class="form-control" accept="image/*" required>
+          <input type="file" id="preview_image" name="preview_image" class="form-control" accept="image/*">
         </div>
 
         <div class="form-group">
           <label for="body">Текст статьи</label>
-          <textarea id="body" name="body" class="form-control" rows="10" placeholder="Полный текст новости..." required></textarea>
+          <textarea id="body" name="body" class="form-control" rows="10" placeholder="Полный текст новости..."></textarea>
         </div>
 
         <div class="form-group">

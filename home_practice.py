@@ -2,6 +2,7 @@
 import os
 import time
 import uuid
+import shutil
 from typing import Annotated
 from PIL import Image, ImageOps
 
@@ -9,6 +10,7 @@ import bcrypt
 import pandas as pd
 from fastapi import FastAPI, Request, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.exceptions import HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -267,13 +269,17 @@ def error_page(request: Request):
 
 @app.get('/main', response_class=HTMLResponse)
 def main_page_load(request: Request):
+    role = request.session.get('role')
     news = pd.read_csv('articles.csv', encoding="utf-8").fillna('')
     newslist = news.to_dict(orient="records")
 
     return templates.TemplateResponse(
         request=request,
         name="main.html",
-        context={"news_list": newslist}
+        context={
+            "news_list": newslist,
+            'role':role,
+            }
     )
 
 @app.get('/create-news', response_class=HTMLResponse)
@@ -283,28 +289,44 @@ def news_page_load(request: Request):
         name="create-news.html"
     )
 
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 @app.post('/create-news', response_class=HTMLResponse)
 def news_page_load(
-        request: Request,
-        title: str = Form(...),
-        annotation: str = Form(...),
-        body: str = Form(...),
-        preview_image: UploadFile = File(...),
-        article_images: list[UploadFile] = File(default=[]),
-    ):
+    request: Request,
+    title: str = Form(...),
+    annotation: str = Form(default=""),
+    published_at: str = Form(default=""),
+    body: str = Form(default=""),
+    preview_image: UploadFile | None = File(default=None),
+    article_images: list[UploadFile] = File(default=[]),
+):
 
-    if not os.path.isfile('articles.csv') or os.path.getsize("articles.csv") == 0:
-            existing = pd.DataFrame(columns=["title", "annotation", "body", "preview_image", "article_images"])
-            file_exists = False
-    
+    preview_path = ""
+    if preview_image and preview_image.filename:
+        preview_path = os.path.join(UPLOAD_DIR, preview_image.filename)
+        with open(preview_path, "wb") as buffer:
+            shutil.copyfileobj(preview_image.file, buffer)
+
+    saved_images = []
+    for img in article_images:
+        if img and img.filename:
+            img_path = os.path.join(UPLOAD_DIR, img.filename)
+            with open(img_path, "wb") as buffer:
+                shutil.copyfileobj(img.file, buffer)
+            saved_images.append(img_path)
+
+    file_exists = os.path.isfile('articles.csv') and os.path.getsize('articles.csv') > 0
+
     article = pd.DataFrame({
-                'title': title,
-                'annotation': annotation,
-                'body': body,
-                'preview_image': preview_image,
-                'article_images': article_images
-            })
-    
+        'title': [title],
+        'annotation': [annotation],
+        'body': [body],
+        'preview_image': [preview_path],
+        'article_images': [",".join(saved_images)]
+    })
+
     article.to_csv(
         'articles.csv',
         index=False,
@@ -312,14 +334,20 @@ def news_page_load(
         header=not file_exists,
         encoding="utf-8",
     )
-        
-    return RedirectResponse(
-        url="main.html", status_code=307
-    )
 
-@app.get('/article', response_class=HTMLResponse)
-def article_page_load(request: Request):
+    return RedirectResponse(url="/main", status_code=303)
+
+@app.get("/article.html", response_class=HTMLResponse)
+def get_article(request: Request, id: int):
+    df = pd.read_csv("articles.csv")
+    
+    if id < 0 or id >= len(df):
+        raise HTTPException(status_code=404, detail="Новость не найдена")
+    
+    article = df.iloc[id].fillna("").to_dict()
+    
     return templates.TemplateResponse(
         request=request,
-        name="article.html"
+        name="article.html", 
+        context={"article": article}
     )

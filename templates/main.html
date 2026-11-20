@@ -10,12 +10,12 @@
 
   <header class="header">
     <div class="container header__inner">
-      <a href="index.html" class="logo">NEWS.PORTAL</a>
+      <a href="/home" class="logo">NEWS.PORTAL</a>
       
       <div class="header__actions">
         <!-- Показываем кнопку только модератору и админу -->
         {% if role == "GOLD" %}
-          <a href="create-news.html" class="btn">+ Добавить новость</a>
+          <a href="/create-news" class="btn">+ Добавить новость</a>
         {% endif %}
         
         <img class="avatar" src="{{ pfp_url }}" alt="Профиль">
@@ -28,7 +28,7 @@
       
       <!-- Плитка новости (повторяется в цикле) -->
       {% for item in news_list %}
-      <a href="article.html?id={{ item.id }}" class="news-card">
+      <a href="/article.html?id={{ loop.index0 }}" class="news-card">
         <img class="news-card__img" src="{{ item.preview_image }}" alt="{{ item.title }}">
         
         <div class="news-card__body">
