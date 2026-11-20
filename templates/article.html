@@ -4,14 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ article.title }}</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/news.css">
 </head>
 <body>
 
   <header class="header">
     <div class="container header__inner">
       <a href="/main" class="logo">NEWS.PORTAL</a>
-      <img class="avatar" src="{{ pfp_url }}" alt="Профиль">
+      <div class="header_user">
+        <label>{{ username }}</label>
+        <img class="avatar" src="{{ pfp_url }}" alt="Профиль" style='width:50px;height:50px;object-fit:cover;border-radius:50%;'>
+      </div>
     </div>
   </header>
 
@@ -32,9 +35,9 @@
       </div>
 
       <!-- Остальные картинки в статье -->
-      {% if article.gallery_images %}
+      {% if article.article_images %}
       <div class="article__gallery">
-        {% for img_url in article.gallery_images %}
+        {% for img_url in article.article_images %}
           <img src="{{ img_url }}" alt="Изображение к статье">
         {% endfor %}
       </div>
@@ -46,7 +49,25 @@
           <button type="button" class="btn btn--outline">👍 {{ article.likes }}</button>
           <button type="button" class="btn btn--outline">👎 {{ article.dislikes }}</button>
         </div>
-        <span>Комментариев: {{ article.comments_count }}</span>
+        <h2>Комментарии</h2>
+
+        {% for comment in comments %}
+            <div class="comment">
+                <strong>{{ comment.username }}</strong>
+                <p>{{ comment.comment }}</p>
+            </div>
+        {% else %}
+            <p>Комментариев пока нет.</p>
+        {% endfor %}
+        <form action="/article/{{ article_id }}/comment" method="POST">
+            <label for="comment">Ваш комментарий</label>
+            <textarea
+                id="comment"
+                name="comment"
+                rows="3"
+                required></textarea>
+            <button type="submit">Отправить</button>
+        </form>
       </div>
     </article>
   </main>

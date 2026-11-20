@@ -1,19 +1,20 @@
-#python -m uvicorn home_practice:app --reload
+# python -m uvicorn home_practice:app --reload
+
 import os
 import time
 import uuid
 import shutil
+from pathlib import Path
 from typing import Annotated
-from PIL import Image, ImageOps
 
 import bcrypt
 import pandas as pd
-from fastapi import FastAPI, Request, Form, File, UploadFile
+from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.exceptions import HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
+
 
 app = FastAPI()
 
@@ -25,50 +26,98 @@ app.mount(
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key="spinach",
-    same_site='lax',
-    https_only=True
+    secret_key=os.environ.get("SESSION_SECRET_KEY", "spinach"),
+    same_site="lax",
+    https_only=False,
 )
 
 templates = Jinja2Templates(directory="templates")
 
 USER_DATA_FILE = "user_data.csv"
-SESSION_LIFETIME = 120
+ARTICLES_FILE = "articles.csv"
+COMMENTS_FILE = "comments.csv"
+LIKES_FILE = "likes.csv"
+
+SESSION_LIFETIME = 240
+
 ROLES = {
     "COMMON": 1,
     "SILVER": 2,
-    "GOLD": 3
+    "GOLD": 3,
+}
+
+AVATAR_DIR = os.path.join("static", "avatars")
+UPLOAD_DIR = os.path.join("static", "uploads")
+
+os.makedirs(AVATAR_DIR, exist_ok=True)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+ALLOWED_IMAGE_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".gif",
 }
 
 
-@app.get("/", response_class=RedirectResponse)
+def is_session_active(request: Request) -> bool:
+    username = request.session.get("username")
+    session_starttime = request.session.get("session_starttime")
+
+    if not username or session_starttime is None:
+        return False
+
+    if time.time() - session_starttime > SESSION_LIFETIME:
+        request.session.clear()
+        return False
+
+    return True
+
+
+def save_image(
+    upload_file: UploadFile,
+    upload_dir: str,
+) -> str:
+    original_extension = Path(upload_file.filename or "").suffix.lower()
+
+    if original_extension not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Разрешены только изображения JPG, JPEG, PNG, WEBP и GIF",
+        )
+
+    unique_filename = f"{uuid.uuid4().hex}{original_extension}"
+    file_path = os.path.join(upload_dir, unique_filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(upload_file.file, buffer)
+
+    return unique_filename
+
+
+@app.get("/")
 def main_page(request: Request):
     return RedirectResponse(url="/login", status_code=303)
 
 
 @app.get("/home", response_class=HTMLResponse)
 def home_page(request: Request):
+    if not is_session_active(request):
+        return RedirectResponse(url="/login", status_code=303)
+
     username = request.session.get("username")
-    session_starttime = request.session.get("session_starttime")
-    avatar = request.session.get('pfp_url')
-    role = request.session.get('role')
-    current_time = time.time()
-
-    try:
-
-        if (current_time - session_starttime) or not session_starttime > SESSION_LIFETIME:
-            request.session.clear()
-
-    except TypeError:
-        return RedirectResponse(url="/login", status_code=303)
-
-    if not username:
-        return RedirectResponse(url="/login", status_code=303)
+    avatar = request.session.get("pfp_url")
+    role = request.session.get("role")
 
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"username": username, 'pfp_url': avatar, "role": role},
+        context={
+            "username": username,
+            "pfp_url": avatar,
+            "role": role,
+        },
     )
 
 
@@ -120,7 +169,7 @@ def submit_login(
     stored_hash = user_rows["password"].iloc[0]
     pfp_url = user_rows["pfp"].iloc[0]
     role = user_rows["role"].iloc[0]
-    
+
     try:
         password_is_correct = bcrypt.checkpw(
             password.encode("utf-8"),
@@ -139,21 +188,21 @@ def submit_login(
             name="login.html",
             context={"error": "Incorrect username or password"},
         )
-    
+
     request.session["username"] = username
     request.session["pfp_url"] = pfp_url
     request.session["role"] = role
-    request.session["session_starttime"]= time.time()
+    request.session["session_starttime"] = time.time()
 
     return RedirectResponse(url="/home", status_code=303)
 
-@app.post("/logout", response_class=HTMLResponse)
+
+@app.post("/logout")
 def log_out(request: Request):
     request.session.clear()
-    return RedirectResponse(
-        url='/login',
-        status_code=303
-    )
+
+    return RedirectResponse(url="/login", status_code=303)
+
 
 @app.get("/register", response_class=HTMLResponse)
 def register_page(request: Request):
@@ -163,15 +212,18 @@ def register_page(request: Request):
         context={"error": None},
     )
 
+
 @app.post("/register", response_class=HTMLResponse)
 def register_user(
     request: Request,
     username: Annotated[str, Form()],
     password: Annotated[str, Form()],
-    avatar_file: Annotated[UploadFile | None, File()] = None
+    avatar_file: Annotated[UploadFile | None, File()] = None,
 ):
     if not os.path.isfile(USER_DATA_FILE) or os.path.getsize(USER_DATA_FILE) == 0:
-        existing = pd.DataFrame(columns=["username", "password", "pfp", "role"])
+        existing = pd.DataFrame(
+            columns=["username", "password", "pfp", "role"]
+        )
         file_exists = False
     else:
         try:
@@ -183,7 +235,9 @@ def register_user(
             )
             file_exists = True
         except pd.errors.EmptyDataError:
-            existing = pd.DataFrame(columns=["username", "password", "pfp", "role"])
+            existing = pd.DataFrame(
+                columns=["username", "password", "pfp", "role"]
+            )
             file_exists = False
 
     if not existing.empty and (existing["username"] == username).any():
@@ -198,38 +252,18 @@ def register_user(
         bcrypt.gensalt(),
     ).decode("utf-8")
 
+    avatar_url = "/static/avatars/default.webp"
+
     if avatar_file and avatar_file.filename:
-        file_extension = os.path.splitext(avatar_file.filename)[1] or ".webp"
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        avatar_filename = save_image(avatar_file, AVATAR_DIR)
+        avatar_url = f"/static/avatars/{avatar_filename}"
 
-        upload_dir = os.path.join("static", "avatars")
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, unique_filename)
-
-        with Image.open(avatar_file.file) as img:
-            img = ImageOps.exif_transpose(img)
-
-            if file_extension.lower() in (".jpg", ".jpeg") and img.mode in (
-                "RGBA",
-                "P",
-            ):
-                img = img.convert("RGB")
-
-            cropped = ImageOps.fit(img, (300, 300), method=Image.Resampling.LANCZOS)
-            cropped.save(file_path)
-
-        avatar_url = f"/static/avatars/{unique_filename}"
-    else:
-        avatar_url = "/static/avatars/default.webp"
-
-    new_user = pd.DataFrame(
-        [{
-            "username": username, 
-            "password": password_hash,
-            "pfp": avatar_url,
-            "role": "COMMON"
-        }]
-    )
+    new_user = pd.DataFrame([{
+        "username": username,
+        "password": password_hash,
+        "pfp": avatar_url,
+        "role": "COMMON",
+    }])
 
     try:
         new_user.to_csv(
@@ -246,54 +280,58 @@ def register_user(
         )
 
     request.session["username"] = username
+    request.session["pfp_url"] = avatar_url
     request.session["role"] = "COMMON"
     request.session["session_starttime"] = time.time()
-    
-    return templates.TemplateResponse(
-        request=request,
-        name="home.html",
-        context={
-            "username": username, 
-            "pfp_url": avatar_url, 
-            "role": "COMMON"
-            },
-    )
+
+    return RedirectResponse(url="/home", status_code=303)
 
 
-@app.get("/404", response_class=HTMLResponse)
-def error_page(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="404.html",
-    )
-
-@app.get('/main', response_class=HTMLResponse)
+@app.get("/main", response_class=HTMLResponse)
 def main_page_load(request: Request):
-    role = request.session.get('role')
-    news = pd.read_csv('articles.csv', encoding="utf-8").fillna('')
-    newslist = news.to_dict(orient="records")
+    if not is_session_active(request):
+        return RedirectResponse(url="/login", status_code=303)
+    
+    role = request.session.get("role", "COMMON")
+
+    if not os.path.isfile(ARTICLES_FILE):
+        newslist = []
+    else:
+        try:
+            news = pd.read_csv(
+                ARTICLES_FILE,
+                encoding="utf-8",
+            ).fillna("")
+
+            newslist = news.to_dict(orient="records")
+        except pd.errors.EmptyDataError:
+            newslist = []
 
     return templates.TemplateResponse(
         request=request,
         name="main.html",
         context={
             "news_list": newslist,
-            'role':role,
-            }
+            "role": role,
+            "pfp_url": request.session.get("pfp_url"),
+            "username": request.session.get('username')
+        },
     )
 
-@app.get('/create-news', response_class=HTMLResponse)
-def news_page_load(request: Request):
+
+@app.get("/create-news", response_class=HTMLResponse)
+def create_news_page(request: Request):
+    if not is_session_active(request):
+        return RedirectResponse(url="/login", status_code=303)
+
     return templates.TemplateResponse(
         request=request,
-        name="create-news.html"
+        name="create-news.html",
     )
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-@app.post('/create-news', response_class=HTMLResponse)
-def news_page_load(
+@app.post("/create-news")
+def create_news(
     request: Request,
     title: str = Form(...),
     annotation: str = Form(default=""),
@@ -302,52 +340,134 @@ def news_page_load(
     preview_image: UploadFile | None = File(default=None),
     article_images: list[UploadFile] = File(default=[]),
 ):
+    if not is_session_active(request):
+        return RedirectResponse(url="/login", status_code=303)
 
     preview_path = ""
+
     if preview_image and preview_image.filename:
-        preview_path = os.path.join(UPLOAD_DIR, preview_image.filename)
-        with open(preview_path, "wb") as buffer:
-            shutil.copyfileobj(preview_image.file, buffer)
+        preview_filename = save_image(preview_image, UPLOAD_DIR)
+        preview_path = f"/static/uploads/{preview_filename}"
 
     saved_images = []
-    for img in article_images:
-        if img and img.filename:
-            img_path = os.path.join(UPLOAD_DIR, img.filename)
-            with open(img_path, "wb") as buffer:
-                shutil.copyfileobj(img.file, buffer)
-            saved_images.append(img_path)
 
-    file_exists = os.path.isfile('articles.csv') and os.path.getsize('articles.csv') > 0
+    for image in article_images:
+        if image and image.filename:
+            image_filename = save_image(image, UPLOAD_DIR)
+            saved_images.append(f"/static/uploads/{image_filename}")
 
-    article = pd.DataFrame({
-        'title': [title],
-        'annotation': [annotation],
-        'body': [body],
-        'preview_image': [preview_path],
-        'article_images': [",".join(saved_images)]
-    })
-
-    article.to_csv(
-        'articles.csv',
-        index=False,
-        mode="a",
-        header=not file_exists,
-        encoding="utf-8",
+    file_exists = (
+        os.path.isfile(ARTICLES_FILE)
+        and os.path.getsize(ARTICLES_FILE) > 0
     )
+
+    article = pd.DataFrame([{
+        "title": title,
+        "annotation": annotation,
+        "body": body,
+        "published_at": published_at,
+        "preview_image": preview_path,
+        "article_images": "|".join(saved_images),
+    }])
+
+    try:
+        article.to_csv(
+            ARTICLES_FILE,
+            index=False,
+            mode="a",
+            header=not file_exists,
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        return HTMLResponse(
+            content=f"Ошибка сервера при записи данных: {exc}",
+            status_code=500,
+        )
 
     return RedirectResponse(url="/main", status_code=303)
 
-@app.get("/article.html", response_class=HTMLResponse)
-def get_article(request: Request, id: int):
-    df = pd.read_csv("articles.csv")
-    
-    if id < 0 or id >= len(df):
+
+@app.get("/article/{article_id}", response_class=HTMLResponse)
+def get_article(request: Request, article_id: int):
+    if not is_session_active(request):
+        return RedirectResponse(url="/login", status_code=303)
+
+    if not os.path.isfile(ARTICLES_FILE):
+        raise HTTPException(status_code=404, detail="Новость не найдена")
+
+    try:
+        df = pd.read_csv(
+            ARTICLES_FILE,
+            encoding="utf-8",
+        ).fillna("")
+    except pd.errors.EmptyDataError:
+        raise HTTPException(status_code=404, detail="Новость не найдена")
+
+    if article_id < 0 or article_id >= len(df):
         raise HTTPException(status_code=404, detail="Новость не найдена")
     
-    article = df.iloc[id].fillna("").to_dict()
+    article = df.iloc[article_id].to_dict()
+
+    article_images_raw = article.get("article_images", "")
+
+    if article_images_raw:
+        article["article_images"] = article_images_raw.split("|")
+    else:
+        article["article_images"] = []
+
+    comments = pd.read_csv(COMMENTS_FILE, encoding="utf-8")
     
     return templates.TemplateResponse(
         request=request,
-        name="article.html", 
-        context={"article": article}
+        name="article.html",
+        context={
+            "article_id": article_id,
+            "article": article,
+            "username": request.session.get("username"),
+            "pfp_url": request.session.get("pfp_url"),
+            "comments": comments
+                },
+    )
+
+@app.post("/article/{article_id}/comment")
+def add_comment(
+    request: Request,
+    article_id: int,
+    comment: str = Form(...),
+):
+    if not is_session_active(request):
+        return RedirectResponse(url="/login", status_code=303)
+
+    comment = comment.strip()
+
+    if not comment:
+        return RedirectResponse(
+            url=f"/article/{article_id}",
+            status_code=303,
+        )
+
+    comment_df = pd.DataFrame(
+        [{
+            "article_id": article_id,
+            "username": request.session["username"],
+            "comment": comment,
+        }]
+    )
+    comment_df.to_csv(
+        COMMENTS_FILE,
+        index=False,
+        mode='a',
+        header=not comment,
+        encoding="utf-8")
+
+    return RedirectResponse(
+        url=f"/article/{article_id}",
+        status_code=303,
+    )
+
+@app.get("/404", response_class=HTMLResponse)
+def error_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="404.html",
     )
