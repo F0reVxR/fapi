@@ -38,9 +38,26 @@
       {% if article.article_images %}
       <div class="article__gallery">
         {% for img_url in article.article_images %}
-          <img src="{{ img_url }}" alt="Изображение к статье">
+          <img class="slide" src="{{ img_url }}" alt="imgs" {% if not loop.first %}style="display: none;"{% endif %}>
         {% endfor %}
+
+        {% if article.article_images|length > 1 %}
+          <br>
+          <button type="button" onclick="changeSlide(-1)">prev</button>
+          <button type="button" onclick="changeSlide(1)">next</button>
+        {% endif %}
       </div>
+
+      <script>
+        let current = 0;
+        const slides = document.querySelectorAll('.article__gallery .slide');
+
+        function changeSlide(step) {
+          slides[current].style.display = 'none';
+          current = (current + step + slides.length) % slides.length;
+          slides[current].style.display = 'block';
+        }
+      </script>
       {% endif %}
 
       <!-- Панель реакций внизу статьи -->

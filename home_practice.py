@@ -129,6 +129,34 @@ def login_page(request: Request):
         context={"error": None},
     )
 
+from fastapi.responses import StreamingResponse
+from fast_captcha import img_captcha
+
+captcha_store: dict[str, str] = {}
+
+
+@app.get("/captcha")
+def get_captcha(request: Request):
+    img, text = img_captcha()
+    
+    # Получаем или создаем ID сессии пользователя
+    captcha_id = str(uuid.uuid4())
+    captcha_store[captcha_id] = text.lower()
+    
+    response = StreamingResponse(content=img, media_type="image/jpeg")
+    response.set_cookie(key="captcha_id", value=captcha_id, httponly=True)
+    return response
+
+
+@app.post("/verify")
+def verify_form(request: Request, user_captcha: str = Form(...)):
+    captcha_id = request.cookies.get("captcha_id")
+    real_text = captcha_store.pop(captcha_id, None)
+
+    if not real_text or user_captcha.strip().lower() != real_text:
+        raise HTTPException(status_code=400, detail="Неверная капча")
+
+    {"status": "ok", "message": "Проверка пройдена!"}
 
 @app.post("/login", response_class=HTMLResponse)
 def submit_login(
@@ -396,10 +424,7 @@ def get_article(request: Request, article_id: int):
         raise HTTPException(status_code=404, detail="Новость не найдена")
 
     try:
-        df = pd.read_csv(
-            ARTICLES_FILE,
-            encoding="utf-8",
-        ).fillna("")
+        df = pd.read_csv(ARTICLES_FILE, encoding="utf-8").fillna("")
     except pd.errors.EmptyDataError:
         raise HTTPException(status_code=404, detail="Новость не найдена")
 
@@ -407,16 +432,21 @@ def get_article(request: Request, article_id: int):
         raise HTTPException(status_code=404, detail="Новость не найдена")
     
     article = df.iloc[article_id].to_dict()
-
     article_images_raw = article.get("article_images", "")
+    article["article_images"] = article_images_raw.split("|") if article_images_raw else []
 
-    if article_images_raw:
-        article["article_images"] = article_images_raw.split("|")
-    else:
-        article["article_images"] = []
+    # Безопасная загрузка комментариев
+    comments_list = []
+    if os.path.isfile(COMMENTS_FILE):
+        try:
+            comments_df = pd.read_csv(COMMENTS_FILE, encoding="utf-8").fillna("")
+            if not comments_df.empty and "article_id" in comments_df.columns:
+                # Приводим столбец к int на случай, если pandas прочитал его как float или str
+                article_comments = comments_df[comments_df["article_id"].astype(int) == article_id]
+                comments_list = article_comments.to_dict(orient="records")
+        except (pd.errors.EmptyDataError, ValueError):
+            comments_list = []
 
-    comments = pd.read_csv(COMMENTS_FILE, encoding="utf-8")
-    
     return templates.TemplateResponse(
         request=request,
         name="article.html",
@@ -425,8 +455,8 @@ def get_article(request: Request, article_id: int):
             "article": article,
             "username": request.session.get("username"),
             "pfp_url": request.session.get("pfp_url"),
-            "comments": comments
-                },
+            "comments": comments_list,
+        },
     )
 
 @app.post("/article/{article_id}/comment")

@@ -5,4 +5,5 @@ pillow
 jinja2
 python-multipart
 bcrypt
+fast_captcha
 itsdangerous

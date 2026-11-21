@@ -22,6 +22,26 @@
             {% endif %}
 
         </form>
+        <form action="/verify" method="post">
+            <div>
+                <!-- Сама картинка капчи -->
+                <img id="captcha-img" src="/captcha" alt="Капча" style="vertical-align: middle; cursor: pointer;" onclick="reloadCaptcha()" title="Нажмите, чтобы обновить">
+                <button type="button" onclick="reloadCaptcha()">🔄 Обновить</button>
+            </div>
+
+            <div style="margin-top: 10px;">
+                <input type="text" name="user_captcha" placeholder="Введите символы" required>
+                <button type="submit">Отправить</button>
+            </div>
+        </form>
+
+        <script>
+            function reloadCaptcha() {
+                const img = document.getElementById('captcha-img');
+                // Добавляем timestamp, чтобы браузер не брал старую картинку из кэша
+                img.src = '/captcha?t=' + Date.now();
+            }
+        </script>
     </div>
 </body>
 
